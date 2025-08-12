@@ -1,0 +1,42 @@
+---
+title: "How Happy is the United States? 2019"
+format: html
+execute:
+  echo: false
+---
+
+```{r}
+#| include: false
+
+library(tidyverse)
+library(gt)
+library(ggrepel)
+
+happiness <- read_csv("2019.csv")
+
+us_rank <- happiness |> 
+  filter(`Country or region` == "United States") |> 
+  pull(`Overall rank`)
+```
+
+In 2019, the United States was the `r us_rank`th happiest country in the world.
+
+```{r}
+ggplot(happiness, aes(x = `GDP per capita`, y = Score)) +
+  geom_point(alpha = 0.7, size = 3, color = "grey70") +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  labs(title = "Happiness vs GDP per Capita (2019)",
+       subtitle = "World Happiness Report Data",
+       x = "GDP per Capita",
+       y = "Happiness Score") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 14, face = "bold"),
+        plot.subtitle = element_text(size = 12))
+```
+
+The top 10 most happy countries in 2019 were:
+
+```{r}
+# A table
+
+```
