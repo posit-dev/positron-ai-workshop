@@ -22,8 +22,8 @@ us_rank <- happiness |>
 In 2019, the United States was the `r us_rank`th happiest country in the world.
 
 ```{r}
-ggplot(happiness, aes(x = `GDP per capita`, y = Score)) +
-  geom_point(alpha = 0.7, size = 3, color = "grey70") +
+ggplot(happiness_data, aes(x = `GDP per capita`, y = Score)) +
+  geom_point(alpha = 0.7, size = 3, color = grey70) +
   geom_smooth(method = "lm", se = FALSE, color = "black") +
   labs(title = "Happiness vs GDP per Capita (2019)",
        subtitle = "World Happiness Report Data",
