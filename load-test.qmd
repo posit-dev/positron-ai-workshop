@@ -26,3 +26,9 @@ To help load test our infrastructure, do these tasks at roughly the same time as
 7. Click through several databot suggestions to further explore the data however your like.
 
 8. Run /report to generate a quarto report of your session.
+
+9. Open report-python.qmd. Run the first two code cells in order to produce an error. Start a new Positron Assistant chat in the sidebar by clicking `+`. Repeat step one.
+
+10. Place your cursor in the code cell that makes a graph and press Ctrl/Cmd + I to open the inline editor. Ask Positron Assistant to
+
+> Color the data point for the united states red and add a large label next to the point.
