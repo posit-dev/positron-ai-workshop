@@ -21,7 +21,7 @@ us_rank = happiness[happiness['Country or region'] == 'United States']['Overall 
 In 2019, the United States was the `{python} us_rank`th happiest country in the world.
 
 ```{python}
-(ggplot(happiness_data, aes(x='GDP per capita', y='Score')) +
+(ggplot(happiness_data, aes(x='GDP per capita', y=Score)) +
  geom_point(alpha=0.7, size=3, color='grey') +
  geom_smooth(method='lm', se=False, color='black') +
  labs(title="Happiness vs GDP per Capita (2019)",
