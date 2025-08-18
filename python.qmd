@@ -33,10 +33,9 @@ In 2019, the United States was the `{python} us_rank`th happiest country in the 
        plot_subtitle=element_text(size=12)))
 ```
 
-The top 10 most happy countries in 2019 were:
+Compare this to the happiest countries in 2019.
 
 ```{python}
-# A table
-top_10 = happiness.nsmallest(10, 'Overall rank')[['Overall rank', 'Country or region', 'Score']]
-print(top_10.to_string(index=False))
+# Empty for now
+
 ```

@@ -34,9 +34,9 @@ ggplot(happiness_data, aes(x = `GDP per capita`, y = Score)) +
         plot.subtitle = element_text(size = 12))
 ```
 
-The top 10 most happy countries in 2019 were:
+Compare this to the happiest countries in 2019.
 
 ```{r}
-# A table
+# Empty for now
 
 ```
