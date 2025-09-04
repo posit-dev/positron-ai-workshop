@@ -9,7 +9,6 @@ execute:
 #| include: false
 
 library(tidyverse)
-library(gt)
 library(ggrepel)
 
 happiness <- read_csv("2019.csv")
@@ -32,11 +31,4 @@ ggplot(happiness_data, aes(x = `GDP per capita`, y = Score)) +
   theme_minimal() +
   theme(plot.title = element_text(size = 14, face = "bold"),
         plot.subtitle = element_text(size = 12))
-```
-
-Compare this to the happiest countries in 2019.
-
-```{r}
-# Empty for now
-
 ```
