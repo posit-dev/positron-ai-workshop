@@ -32,10 +32,3 @@ In 2019, the United States was the `{python} us_rank`th happiest country in the 
  theme(plot_title=element_text(size=14, weight='bold'),
        plot_subtitle=element_text(size=12)))
 ```
-
-Compare this to the happiest countries in 2019.
-
-```{python}
-# Empty for now
-
-```
