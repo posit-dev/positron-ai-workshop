@@ -10,6 +10,7 @@ execute:
 
 library(tidyverse)
 library(ggrepel)
+library(gt)
 
 happiness <- read_csv("2019.csv")
 
