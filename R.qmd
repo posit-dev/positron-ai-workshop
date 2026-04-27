@@ -19,7 +19,7 @@ us_rank <- happiness |>
   pull(`Overall rank`)
 ```
 
-In 2019, the United States was the `r us_rank`th happiest country in the world.
+Is there a relationship between *economic power* and *happiness*? And how does the United States compare to other countries on these dimensions? In 2019, the United States was the `r us_rank`th happiest country in the world.
 
 ```{r}
 ggplot(happiness_data, aes(x = `GDP per capita`, y = Score)) +

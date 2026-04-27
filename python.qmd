@@ -18,7 +18,7 @@ happiness = pd.read_csv("2019.csv")
 us_rank = happiness[happiness['Country or region'] == 'United States']['Overall rank'].iloc[0]
 ```
 
-In 2019, the United States was the `{python} us_rank`th happiest country in the world.
+Is there a relationship between *economic power* and *happiness*? And how does the United States compare to other countries on these dimensions? In 2019, the United States was the `{python} us_rank`th happiest country in the world.
 
 ```{python}
 (ggplot(happiness_data, aes(x='GDP per capita', y=Score)) +
