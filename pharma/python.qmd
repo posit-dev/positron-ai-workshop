@@ -1,0 +1,210 @@
+---
+title: "Adverse Events Summary — CDISC Pilot 01"
+date: today
+jupyter: python3
+format:
+  html:
+    self-contained: true
+    toc: true
+execute:
+  echo: false
+  warning: false
+---
+
+```{python}
+#| label: install-instructions
+#| eval: false
+# To run in the terminal
+
+uv venv
+source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+```{python}
+#| label: load-packages
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
+from itables import show
+```
+
+```{python}
+#| label: load-data
+adsl = pd.read_csv("adsl.csv")
+adae = pd.read_csv("adae.csv")
+```
+
+## Introduction
+
+This report summarizes adverse events (AEs) from the CDISC Pilot 01 clinical trial (`CDISCPILOT01`), a randomized study of Xanomeline — a muscarinic receptor agonist delivered via transdermal patch — compared to placebo. The trial enrolled `{python} len(adsl)` patients across three balanced treatment arms: Placebo, Xanomeline Low Dose, and Xanomeline High Dose.
+
+Of the `{python} len(adsl)` patients in the study, `{python} adae["USUBJID"].nunique()` experienced at least one adverse event, generating `{python} len(adae)` AE records across `{python} adae["AEDECOD"].nunique()` distinct event types.
+
+## Maximum AE severity by treatment arm
+
+Each patient was assigned a maximum AE severity based on the most serious event they experienced during the trial. Patients with no adverse events were assigned a severity of "NONE". The chart below shows the proportion of patients in each severity category, broken down by treatment arm.
+
+```{python}
+#| label: build-patient-table
+severity_levels = ["NONE", "MILD", "MODERATE", "SEVERE"]
+severity_map = {1: "MILD", 2: "MODERATE", 3: "SEVERE"}
+
+max_severity = (
+    adae
+    .dropna(subset=["ASEVN"])
+    .assign(ASEVN=lambda df: df["ASEVN"].astype(int))
+    .groupby("USUBJID")["ASEVN"]
+    .max()
+    .reset_index()
+    .assign(MAX_SEV=lambda df: df["ASEVN"].map(severity_map))
+    [["USUBJID", "MAX_SEV"]]
+)
+
+patient_table = (
+    adsl[["USUBJID", "TRT01P"]]
+    .merge(max_severity, on="USUBJID", how="left")
+    .assign(MAX_SEV=lambda df: df["MAX_SEV"].fillna("NONE"))
+)
+patient_table["MAX_SEV"] = pd.Categorical(
+    patient_table["MAX_SEV"], categories=severity_levels, ordered=True
+)
+```
+
+```{python}
+#| label: chart-1
+trt_recode = {
+    "Placebo":              "Placebo",
+    "Xanomeline High Dose": "Xano. High",
+    "Xanomeline Low Dose":  "Xano. Low",
+}
+trt_order = ["Placebo", "Xano. Low", "Xano. High"]
+
+severity_colors = {
+    "MILD":     "#a1c5e7",
+    "MODERATE": "#61a1d7",
+    "SEVERE":   "#274c77",
+}
+
+plot_data = (
+    patient_table
+    .assign(TRT01P=lambda df: df["TRT01P"].map(trt_recode))
+    .groupby(["TRT01P", "MAX_SEV"], observed=True)
+    .size()
+    .reset_index(name="n")
+)
+plot_data["prop"] = plot_data["n"] / plot_data.groupby("TRT01P")["n"].transform("sum")
+plot_data = plot_data[plot_data["MAX_SEV"] != "NONE"]
+
+fig, ax = plt.subplots(figsize=(8, 5))
+severities = ["MILD", "MODERATE", "SEVERE"]
+bottoms = {arm: 0.0 for arm in trt_order}
+
+for sev in severities:
+    vals = []
+    for arm in trt_order:
+        row = plot_data[(plot_data["TRT01P"] == arm) & (plot_data["MAX_SEV"] == sev)]
+        vals.append(float(row["prop"].values[0]) if len(row) > 0 else 0.0)
+    ax.bar(trt_order, vals, bottom=[bottoms[arm] for arm in trt_order],
+           color=severity_colors[sev], label=sev)
+    for i, arm in enumerate(trt_order):
+        bottoms[arm] += vals[i]
+
+ax.set_ylim(0, 1)
+ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
+ax.set_xlabel("Treatment arm")
+ax.set_ylabel("Proportion of patients")
+ax.set_title("Proportion of patients by maximum AE severity")
+ax.legend(title="Max severity")
+for spine in ["top", "right"]:
+    ax.spines[spine].set_visible(False)
+plt.tight_layout()
+plt.show()
+```
+
+## Adverse events by patient count
+
+The table below shows the number of patients who experienced each type of adverse event, broken down by treatment arm. The bars are on a shared scale so lengths are directly comparable across columns. Use the search box to filter by adverse event name and click column headers to sort.
+
+```{python}
+#| label: ae-table
+ae_table = (
+    adae
+    .drop_duplicates(subset=["USUBJID", "AEDECOD"])
+    .groupby("AEDECOD")
+    .size()
+    .reset_index(name="n_patients")
+    .sort_values("n_patients", ascending=False)
+)
+
+arm_counts_wide = (
+    adae
+    .drop_duplicates(subset=["USUBJID", "AEDECOD", "ARM"])
+    .groupby(["AEDECOD", "ARM"])
+    .size()
+    .unstack(fill_value=0)
+    .reset_index()
+)
+arm_counts_wide.columns.name = None
+
+ae_data = (
+    ae_table
+    .merge(arm_counts_wide, on="AEDECOD")
+    .rename(columns={
+        "n_patients":          "Total",
+        "Xanomeline Low Dose": "XanoLow",
+        "Xanomeline High Dose":"XanoHigh",
+    })
+)
+
+global_max = int(ae_data["Total"].max())
+bar_px = 100
+
+def make_bar(value, color):
+    w = round(int(value) / global_max * bar_px)
+    return (
+        f'<div style="display:flex;align-items:center;">'
+        f'<div style="background:{color};width:{w}px;height:14px;'
+        f'border-radius:2px;flex-shrink:0;"></div>'
+        f'<span style="font-size:11px;margin-left:4px;color:#333;">{int(value)}</span>'
+        f'</div>'
+    )
+
+# Build display DataFrame: HTML bar columns + hidden numeric columns for sorting
+ae_display = pd.DataFrame({
+    "Adverse Event": ae_data["AEDECOD"],
+    "Total":         ae_data["Total"].apply(lambda v: make_bar(v, "#70d6ff")),
+    "Xano. High":    ae_data["XanoHigh"].apply(lambda v: make_bar(v, "#ff70a6")),
+    "Xano. Low":     ae_data["XanoLow"].apply(lambda v: make_bar(v, "#ff9770")),
+    "Placebo":       ae_data["Placebo"].apply(lambda v: make_bar(v, "#ffd670")),
+    # Hidden sort columns (indices 5–8)
+    "_Total":    ae_data["Total"],
+    "_XanoHigh": ae_data["XanoHigh"],
+    "_XanoLow":  ae_data["XanoLow"],
+    "_Placebo":  ae_data["Placebo"],
+})
+
+show(
+    ae_display,
+    allow_html=True,
+    scrollY="400px",
+    scrollCollapse=True,
+    paging=False,
+    searching=True,
+    style=(
+        "font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', "
+        "Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif; "
+        "font-size: 14px;"
+    ),
+    columnDefs=[
+        {"targets": [5, 6, 7, 8], "visible": False},
+        {"targets": 1, "orderData": [5]},
+        {"targets": 2, "orderData": [6]},
+        {"targets": 3, "orderData": [7]},
+        {"targets": 4, "orderData": [8]},
+    ],
+    order=[[5, "desc"]],
+)
+```
+

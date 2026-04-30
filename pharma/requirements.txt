@@ -1,0 +1,6 @@
+jupyter
+pyyaml
+pandas
+numpy
+matplotlib
+itables
