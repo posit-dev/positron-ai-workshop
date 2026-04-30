@@ -1,0 +1,276 @@
+---
+title: "Adverse Events Summary — CDISC Pilot 01"
+date: today
+format:
+  html:
+    self-contained: true
+    toc: true
+execute:
+  echo: false
+  message: false
+  warning: false
+---
+
+```{r}
+#| label: load-packages
+
+# install.packages(c("tidyverse","reactable", "htmltools", "cards", "tfrmt"))
+
+library(tidyverse)
+library(reactable)
+library(htmltools)
+library(cards) # for creating analysis result displays
+library(tfrmt) # for formatting tables in R
+```
+
+```{r}
+#| label: load-data
+adsl <- read_csv("adsl.csv")
+adae <- read_csv("adae.csv")
+```
+
+## Introduction
+
+This report summarizes adverse events (AEs) from the CDISC Pilot 01 clinical trial (`CDISCPILOT01`), a randomized study of Xanomeline — a muscarinic receptor agonist delivered via transdermal patch — compared to placebo. The trial enrolled `{r} nrow(adsl)` patients across three balanced treatment arms: Placebo, Xanomeline Low Dose, and Xanomeline High Dose.
+
+Of the `{r} nrow(adsl)` patients in the study, `{r} n_distinct(adae$USUBJID)` experienced at least one adverse event, generating `{r} nrow(adae)` AE records across `{r} n_distinct(adae$AEDECOD)` distinct event types.
+
+## Maximum AE severity by treatment arm
+
+Each patient was assigned a maximum AE severity based on the most serious event they experienced during the trial. Patients with no adverse events were assigned a severity of "NONE". The chart below shows the proportion of patients in each severity category, broken down by treatment arm.
+
+```{r}
+#| label: build-patient-table
+severity_levels <- c("NONE", "MILD", "MODERATE", "SEVERE")
+
+max_severity <- adae |>
+  group_by(USUBJID) |>
+  summarise(MAX_SEV = severity_levels[max(as.integer(ASEVN) + 1)])
+
+patient_table <- adsl |>
+  select(USUBJID, TRT01P) |>
+  left_join(max_severity, by = "USUBJID") |>
+  mutate(
+    MAX_SEV = replace_na(MAX_SEV, "NONE"),
+    MAX_SEV = factor(MAX_SEV, levels = severity_levels, ordered = TRUE)
+  )
+```
+
+```{r}
+#| label: chart-1
+severity_fill_colors <- c(
+  "NONE"     = "white",
+  "MILD"     = "#a1c5e7",
+  "MODERATE" = "#61a1d7",
+  "SEVERE"   = "#274c77"
+)
+
+plot_data <- patient_table |>
+  mutate(
+    TRT01P = recode(TRT01P,
+      "Placebo"              = "Placebo",
+      "Xanomeline High Dose" = "Xano. High",
+      "Xanomeline Low Dose"  = "Xano. Low"
+    ),
+    TRT01P = factor(TRT01P, levels = c("Placebo", "Xano. Low", "Xano. High"))
+  ) |>
+  count(TRT01P, MAX_SEV) |>
+  group_by(TRT01P) |>
+  mutate(prop = n / sum(n))
+
+plot_data |>
+  filter(MAX_SEV != "NONE") |>
+  ggplot(aes(x = TRT01P, y = prop, fill = MAX_SEV)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent_format(), limits = c(0, 1)) +
+  scale_fill_manual(
+    values = severity_fill_colors,
+    breaks = c("MILD", "MODERATE", "SEVERE")
+  ) +
+  labs(
+    title = "Proportion of patients by maximum AE severity",
+    x = "Treatment arm",
+    y = "Proportion of patients",
+    fill = "Max severity"
+  ) +
+  theme_bw()
+```
+
+## Adverse events by patient count
+
+The table below shows the number of patients who experienced each type of adverse event, broken down by treatment arm. The bars are on a shared scale so lengths are directly comparable across columns. Use the search box to filter by adverse event name, click column headers to sort, and use the filter boxes to narrow rows.
+
+```{r}
+#| label: ae-table
+ae_table <- adae |>
+  distinct(USUBJID, AEDECOD) |>
+  count(AEDECOD, name = "n_patients") |>
+  arrange(desc(n_patients))
+
+arm_counts_wide <- adae |>
+  distinct(USUBJID, AEDECOD, ARM) |>
+  count(AEDECOD, ARM) |>
+  pivot_wider(names_from = ARM, values_from = n, values_fill = 0)
+
+ae_react2 <- ae_table |>
+  left_join(arm_counts_wide, by = "AEDECOD") |>
+  rename(
+    Total    = n_patients,
+    XanoLow  = `Xanomeline Low Dose`,
+    XanoHigh = `Xanomeline High Dose`
+  )
+
+global_max <- max(ae_react2$Total)
+
+bar_cell_left <- function(color, gmax, bar_px = 100) {
+  function(value) {
+    w <- round(value / gmax * bar_px)
+    div(
+      style = "display:flex; align-items:center; justify-content:flex-start;",
+      div(style = paste0(
+        "background:", color, "; width:", w, "px; height:14px;",
+        "border-radius:2px; flex-shrink:0;"
+      )),
+      span(
+        style = "font-size:11px; margin-left:4px; color:#333; white-space:nowrap;",
+        value
+      )
+    )
+  }
+}
+
+reactable(
+  ae_react2 |> select(AEDECOD, Total, XanoHigh, XanoLow, Placebo),
+  searchable       = TRUE,
+  sortable         = TRUE,
+  filterable       = TRUE,
+  height           = 500,
+  striped          = TRUE,
+  highlight        = TRUE,
+  defaultSorted    = "Total",
+  defaultSortOrder = "desc",
+  theme = reactableTheme(
+    style = list(
+      fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif",
+      fontSize   = "14px"
+    )
+  ),
+  columns = list(
+    AEDECOD  = colDef(name = "Adverse Event", minWidth = 220, align = "left"),
+    Total    = colDef(name = "Total",      minWidth = 140, align = "left", cell = bar_cell_left("#70d6ff", global_max)),
+    XanoHigh = colDef(name = "Xano. High", minWidth = 140, align = "left", cell = bar_cell_left("#ff70a6", global_max)),
+    XanoLow  = colDef(name = "Xano. Low",  minWidth = 140, align = "left", cell = bar_cell_left("#ff9770", global_max)),
+    Placebo  = colDef(name = "Placebo",    minWidth = 140, align = "left", cell = bar_cell_left("#ffd670", global_max))
+  )
+)
+```
+
+## Previewing table for submisision
+
+The table below is a preview of the AE summary table that will be included in the submission. The code that makes this table creates structured Analysis Results Datasets following CDISC standards, then formats them into tables. Analysis Results Datasets are part of the emerging CDISC Analysis Results Standard. They contain the summary statistics needed for a particular analysis, along with the necessary metadata to understand those statistics (e.g. column labels, variable labels, etc.). This allows us to easily create multiple different table formats from the same underlying data, and also provides a clear and standardized way to store and share analysis results.
+
+```{r}
+#| label: submissions-table
+
+# Create an Analysis Result Display (ARD) using the {cards} package.
+
+# Create an ARD that stacks hierarchical data of adverse events
+# Grouping by treatment, system organ class, and preferred term
+ae_ard <- ard_stack_hierarchical(
+  data = adae,
+  by = TRT01A, # Note: by variables must be present in the denominator dataset
+  variables = c(AEBODSYS, AETERM),
+  statistic = ~ c("n", "p"), # Calculate count and percentage
+  denominator = adsl,
+  id = USUBJID,
+  over_variables = TRUE,
+  overall = TRUE
+)
+
+# Filter adae and adsl with trt01a set to "Total" and create a new ARD for the total column
+adae2 <- adae |>
+  mutate(TRT01A = "Total")
+adsl2 <- adsl |>
+  mutate(TRT01A = "Total")
+
+ae2_ard <- ard_stack_hierarchical(
+  data = adae2,
+  by = TRT01A, # Note: by variables must be present in the denominator dataset
+  variables = c(AEBODSYS, AETERM),
+  denominator = adsl2,
+  statistic = ~ c("n", "p"),
+  id = USUBJID,
+  over_variables = TRUE,
+  overall = TRUE
+) |>
+  filter(group2 == "TRT01A" | variable == "TRT01A") # filter to stats we need
+
+
+# Further refine the ARD for use in tfrmt
+
+ae3_ard <- bind_ard(ae_ard, ae2_ard) |>
+  # reshape the data
+  shuffle_card(fill_hierarchical_overall = "ANY EVENT") |>
+  # transform group-level freqs/pcts into a singular "bigN" row
+  prep_big_n(vars = "TRT01A") |>
+  # for nested variables, fill any missing values with "ANY EVENT"
+  prep_hierarchical_fill(vars = c("AEBODSYS", "AETERM"), fill = "ANY EVENT") |>
+  mutate(TRT01A = ifelse(TRT01A == "Overall TRT01A", "Total", TRT01A))
+
+# create ordering columns, sort by AEBODSYS
+ordering_aebodsys <- ae3_ard |>
+  filter(TRT01A == "Total", stat_name == "n", AETERM == "ANY EVENT") |>
+  arrange(desc(stat)) |>
+  mutate(ord1 = row_number()) |>
+  select(AEBODSYS, ord1)
+
+# sort by AETERM after AEBODSYS order
+ordering_aeterm <- ae3_ard |>
+  filter(TRT01A == "Total", stat_name == "n") |>
+  group_by(AEBODSYS) |>
+  arrange(desc(stat)) |>
+  mutate(ord2 = row_number()) |>
+  select(AEBODSYS, AETERM, ord2)
+
+# join on our ordering columns and keep required columns
+ae4_ard <- ae3_ard |>
+  full_join(ordering_aebodsys, by = "AEBODSYS") |>
+  full_join(ordering_aeterm, by = c("AEBODSYS", "AETERM")) |>
+  select(AEBODSYS, AETERM, ord1, ord2, stat, stat_name, TRT01A)
+
+
+# Creating the table with {tfrmt}
+
+AE_T01 <- tfrmt_n_pct(
+  n = "n", pct = "p",
+  pct_frmt_when = frmt_when(
+    "==1" ~ frmt("(100%)"),
+    ">=0.995" ~ frmt("(>99%)"),
+    "==0" ~ frmt(""),
+    "<=0.01" ~ frmt("(<1%)"),
+    "TRUE" ~ frmt("(xx.x%)", transform = ~ . * 100)
+  )
+) |>
+  tfrmt(
+    group = AEBODSYS,
+    label = AETERM,
+    param = stat_name,
+    value = stat,
+    column = TRT01A,
+    sorting_cols = c(ord1, ord2),
+    col_plan = col_plan(
+      "System Organ Class
+            Preferred Term" = AEBODSYS, Placebo, `Xanomeline High Dose`, `Xanomeline Low Dose`,
+      -ord1, -ord2
+    ),
+    row_grp_plan = row_grp_plan(row_grp_structure(
+      group_val = ".default", element_block(post_space = " ")
+    )),
+    big_n = big_n_structure(param_val = "bigN", n_frmt = frmt(" (N=xx)"))
+  ) |>
+  print_to_gt(ae4_ard)
+
+AE_T01
+
+# gt::gtsave(AE_T01, "AE_T01.rtf")
+```
